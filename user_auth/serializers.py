@@ -1,97 +1,57 @@
-from wsgiref import validate
 from rest_framework import serializers
-from .models import HospitalUser as User
-from django.contrib import auth
-from rest_framework.exceptions import AuthenticationFailed
-from rest_framework_simplejwt.tokens import RefreshToken, TokenError
+from django.contrib.auth import get_user_model, authenticate
 
-class RegisterSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(max_length=68, min_length=6, write_only=True)
-    password2 = serializers.CharField(max_length=68, min_length=6, write_only=True)
+from core.models import Patient
+from .models import DoctorProfile, PatientProfile
 
+User = get_user_model()
+
+class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['first_name','last_name','email', 'username', 'password', 'password2', 'gender']
+        fields = ('username', 'password', 'email')
+        extra_kwargs = {'password': {'write_only': True}}
 
-    def validate(self, attrs):
-        email = attrs.get('email', '')
-        username = attrs.get('username', '')
-        first_name = attrs.get('first_name', '')
-        last_name = attrs.get('last_name', '')
-
-        if (not username.isalnum()
-            or not first_name.isalnum()
-            or not last_name.isalnum()
-        ):
-            raise serializers.ValidationError(
-                self.default_error_messages)
-        
-        if attrs['password'] != attrs['password2']:
-            raise serializers.ValidationError(
-                {"password": "Password fields didn't match."})
-        
-        return attrs
-    
     def create(self, validated_data):
-        print("validated_data", validated_data)
-        return User.objects.create_user(
-            username=validated_data['username'],
-            first_name=validated_data['first_name'],
-            last_name=validated_data['last_name'],
-            password=validated_data['password'],
-            email=validated_data['email'],
-            gender=validated_data['gender'],
-        )
-    
+        user = User.objects.create_user(**validated_data)
+        return user
 
-class LoginSerializer(serializers.ModelSerializer):
-    username = serializers.CharField(max_length=255, min_length=3)
-    password = serializers.CharField(max_length=68, min_length=6,write_only=True)
-    tokens = serializers.SerializerMethodField()
+class DoctorRegistrationSerializer(serializers.ModelSerializer):
+    user = UserSerializer(required=True)
 
-    def get_tokens(self, obj):
-        user = User.objects.get(username=obj['username'])
-        return {
-            'refresh': user.tokens()['refresh'],
-            'access': user.tokens()['access']
-        }
-    
     class Meta:
-        model = User
-        fields = ['password','username','tokens']
+        model = DoctorProfile
+        fields = ('user', 'specialty')
 
-    def validate(self, attrs):
-        username = attrs.get('username','')
-        password = attrs.get('password','')
-        user = auth.authenticate(username=username,password=password)
-        if not user:
-            raise AuthenticationFailed('Invalid credentials, try again')
-        if not user.is_active:
-            raise AuthenticationFailed('Account disabled, contact admin')
-        return {
-            'email': user.email,
-            'username': user.username,
-            'tokens': user.tokens
-        }
+    def create(self, validated_data):
+        user_data = validated_data.pop('user')
+        user = UserSerializer.create(UserSerializer(), validated_data=user_data)
+        user.is_doctor = True
+        user.save()
+        doctor_profile = DoctorProfile.objects.create(user=user, **validated_data)
+        return doctor_profile
 
+class PatientRegistrationSerializer(serializers.ModelSerializer):
+    user = UserSerializer(required=True)
 
-class LogoutSerializer(serializers.Serializer):
-    refresh = serializers.CharField()
+    class Meta:
+        model = PatientProfile
+        fields = ('user', 'condition')
 
-    def validate(self, attrs):
-        self.token = attrs['refresh']
-        return attrs
-    
-    def save(self, **kwargs):
-        try:
-            RefreshToken(self.token).blacklist()
-        except TokenError:
-            self.fail('bad_token')
+    def create(self, validated_data):
+        user_data = validated_data.pop('user')
+        user = UserSerializer.create(UserSerializer(), validated_data=user_data)
+        user.is_patient = True
+        user.save()
+        patient_profile = PatientProfile.objects.create(user=user, **validated_data)
+        return patient_profile
 
+class LoginSerializer(serializers.Serializer):
+    username = serializers.CharField()
+    password = serializers.CharField()
 
-
-
-# "tokens": {
-#         "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsImV4cCI6MTcxMjg4NTQzMywiaWF0IjoxNzEyNzk5MDMzLCJqdGkiOiIwYTYwODdkZGViNjQ0N2JmYmJlZDYzYmNjNmIzYjM0MyIsInVzZXJfaWQiOjN9.0oiOl-xx4dyo-mQ3eJI62dv_eF2Ewh-Sp138Z7FI2G4",
-#         "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzEyNzk5MDkzLCJpYXQiOjE3MTI3OTkwMzMsImp0aSI6IjA3MDRiNzdjOTY3YTQ3N2M5MjU2ODMyNzA1MDUyZGQ4IiwidXNlcl9pZCI6M30.1VcDH2MmX2K6H9sR_24xbHKy4BEhgC0VoUCFEaT5AuA"
-#     }
+    def validate(self, data):
+        user = authenticate(username=data['username'], password=data['password'])
+        if user and user.is_active:
+            return user
+        raise serializers.ValidationError("Incorrect Credentials")
