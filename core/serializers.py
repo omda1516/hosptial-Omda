@@ -1,5 +1,8 @@
 from django.contrib.auth.models import User
 from rest_framework.serializers import ModelSerializer
+
+from rest_framework import serializers
+
 from .models import (
     Doctor,
     Specialty,
@@ -22,12 +25,10 @@ class ReservationSerializer(ModelSerializer):
         model = Reservation
         fields = '__all__'  # Ensure time_slot is included
         
-class doctorSerializer(ModelSerializer):
-    specialty = SpecialtySerializer(read_only=True)
-    pharmacyID="serializers.readonly field"
+class doctorSerializer(serializers.ModelSerializer):
     class Meta:
         model = Doctor
-        exclude = ["pharmacyID"]
+        fields = ['id', 'firstname', 'lastname', 'age', 'address', 'photo', 'doctor_price', 'university', 'specialty']
 
 
 class UserListSerializer(ModelSerializer):
@@ -78,6 +79,5 @@ class ReceptionSerializer(ModelSerializer):
 
 
 
-                 
 
 
