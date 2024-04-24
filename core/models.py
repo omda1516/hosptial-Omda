@@ -4,6 +4,7 @@ from django.contrib.auth.base_user import AbstractBaseUser
 from django.utils import timezone
 import uuid
 from django.core.exceptions import ValidationError
+from datetime import timedelta
 
 class managment(models.Model):  
     name = models.CharField(max_length=100)
@@ -88,21 +89,36 @@ class Reservation(models.Model):
     payment_amount = models.CharField(max_length=20)
     patientID = models.ForeignKey('Patient', on_delete=models.CASCADE, default=1)
     doctorID = models.ForeignKey('Doctor', on_delete=models.CASCADE, default=1)
-    refund_id = models.ForeignKey('Refound', on_delete=models.CASCADE)  # Corrected model name here
+    refund_id = models.ForeignKey('Refound', on_delete=models.CASCADE)  
 
     def __str__(self):
         return f"{self.date} {self.time_slot} {self.payment_method}"
 
     @classmethod
-    def check_availability(cls, date, time_slot):
-        existing_reservation = cls.objects.filter(date=date, time_slot=time_slot).exists()
+    def check_availability(cls, date, time_slot, doctor_id):
+        count_reservations = cls.objects.filter(date=date, doctorID=doctor_id).count()
+        if count_reservations >= 30:
+            return False 
+        existing_reservation = cls.objects.filter(date=date, time_slot=time_slot, doctorID=doctor_id).exists()
         if existing_reservation:
             return False
         return True
 
+    @classmethod
+    def remaining_reservations(cls, date, doctor_id):
+        count_reservations = cls.objects.filter(date=date, doctorID=doctor_id).count()
+        return 30 - count_reservations
+
+    @classmethod
+    def estimated_time_remaining(cls, date, time_slot, doctor_id):
+        remaining_slots = cls.remaining_reservations(date, doctor_id)
+        current_time = cls.objects.filter(date=date, time_slot__lte=time_slot, doctorID=doctor_id).count()
+        estimated_time = (remaining_slots - current_time) * 15  # Assuming each slot is 15 minutes
+        return timedelta(minutes=estimated_time)
+
     def save(self, *args, **kwargs):
-        if not self.check_availability(self.date, self.time_slot):
-            raise ValidationError("This time slot is already booked.")
+        if not self.check_availability(self.date, self.time_slot, self.doctorID_id):
+            raise ValidationError("This time slot is either full or already booked.")
         super().save(*args, **kwargs)
 
 
