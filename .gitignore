@@ -4,3 +4,4 @@ database.db
 */*/__pycache__/
 */migrations/*
 !*/migrations/__init__.py
+venv/

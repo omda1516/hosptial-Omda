@@ -3,6 +3,7 @@ from django.contrib.auth.models import PermissionsMixin
 from django.contrib.auth.base_user import AbstractBaseUser
 from django.utils import timezone
 import uuid
+from django.core.exceptions import ValidationError
 
 class managment(models.Model):  
     name = models.CharField(max_length=100)
@@ -80,23 +81,29 @@ class Reception(models.Model):
     refound_id=models.ForeignKey(Refound,on_delete=models.CASCADE)
 
 
-
 class Reservation(models.Model):
-    data = models.CharField(max_length=15)
-    time_slot = models.TimeField()  # Added to store the time of the reservation
+    date = models.CharField(max_length=15)
+    time_slot = models.TimeField()  # Time of the reservation
     payment_method = models.CharField(max_length=20)
     payment_amount = models.CharField(max_length=20)
-    patientID = models.ForeignKey(Patient, on_delete=models.CASCADE, default=1)
-    doctorID = models.ForeignKey(Doctor, on_delete=models.CASCADE, default=1)
-    refound_id = models.ForeignKey(Refound, on_delete=models.CASCADE)
+    patientID = models.ForeignKey('Patient', on_delete=models.CASCADE, default=1)
+    doctorID = models.ForeignKey('Doctor', on_delete=models.CASCADE, default=1)
+    refund_id = models.ForeignKey('Refound', on_delete=models.CASCADE)  # Corrected model name here
 
     def __str__(self):
-        return f"{self.data} {self.time_slot} {self.payment_method}"
+        return f"{self.date} {self.time_slot} {self.payment_method}"
 
+    @classmethod
+    def check_availability(cls, date, time_slot):
+        existing_reservation = cls.objects.filter(date=date, time_slot=time_slot).exists()
+        if existing_reservation:
+            return False
+        return True
 
-    def __str__(self):
-        return f"{self.data} {self.payment_method}"
-    
+    def save(self, *args, **kwargs):
+        if not self.check_availability(self.date, self.time_slot):
+            raise ValidationError("This time slot is already booked.")
+        super().save(*args, **kwargs)
 
 
 
