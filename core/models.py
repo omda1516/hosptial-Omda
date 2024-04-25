@@ -84,7 +84,7 @@ class Reception(models.Model):
 
 class Reservation(models.Model):
     date = models.CharField(max_length=15)
-    time_slot = models.TimeField()  # Time of the reservation
+    time_slot = models.TimeField(default=timezone.now)  # Time of the reservation
     payment_method = models.CharField(max_length=20)
     payment_amount = models.CharField(max_length=20)
     patientID = models.ForeignKey('Patient', on_delete=models.CASCADE, default=1)
