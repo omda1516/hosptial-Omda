@@ -6,11 +6,11 @@ from rest_framework import serializers
 from .models import (
     Doctor,
     Specialty,
-    managment,
     Patient,
     Pharmacy,
     Pharmacist,
     Refound,
+    Management,
     Reception,
     Reservation
 )
@@ -39,9 +39,9 @@ class UserListSerializer(ModelSerializer):
         ) 
 
 
-class managmentSerializer(ModelSerializer):
+class ManagmentSerializer(ModelSerializer):
     class Meta:
-        model = managment
+        model = Management
 
  
 class PatientSerializer(ModelSerializer):

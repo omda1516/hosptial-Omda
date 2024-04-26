@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser, Group
+from django.contrib.auth.models import Permission
 from rest_framework_simplejwt.tokens import RefreshToken
 
 class HospitalUser(AbstractUser):
@@ -8,7 +9,25 @@ class HospitalUser(AbstractUser):
         ("female", "Female"),
     ]
     gender = models.CharField(choices=GENDERS, max_length=20)
-    
+
+    # Specify unique related_names for groups and user_permissions
+    groups = models.ManyToManyField(
+        Group,
+        verbose_name='groups',
+        blank=True,
+        help_text='The groups this user belongs to. A user will get all permissions granted to each of their groups.',
+        related_name="hospital_user_set",  # Unique related_name
+        related_query_name="hospital_user",
+    )
+    user_permissions = models.ManyToManyField(
+        Permission,
+        verbose_name='user permissions',
+        blank=True,
+        help_text='Specific permissions for this user.',
+        related_name="hospital_user_set",  # Unique related_name
+        related_query_name="hospital_user_permission",
+    )
+
     def tokens(self):
         refresh = RefreshToken.for_user(self)
         return {
